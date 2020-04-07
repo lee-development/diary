@@ -9,11 +9,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.ktx.storage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import lab.march.diary.R
 import java.text.SimpleDateFormat
 import java.util.*
@@ -64,10 +68,13 @@ class MainActivity : AppCompatActivity() {
                     val firebaseStorage = Firebase.storage
                     val name = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.KOREA).format(Date()) + ".png"
 
-                    firebaseStorage.reference
+                    val ref = firebaseStorage.reference
                         .child("images")
                         .child(name)
-                        .uploadImage(it)
+
+                    lifecycleScope.launchWhenResumed {
+                        launch(Dispatchers.IO) { uploadImage(ref, it) }
+                    }
                 }
             } else {
                 /* fail to get uri */
@@ -75,29 +82,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun StorageReference.uploadImage(uri: Uri) = putFile(uri).addOnCompleteListener { task ->
-        when {
-            task.isSuccessful -> {
-                downloadUrl.addOnSuccessListener { uri ->
-                    val firestore = Firebase.firestore
+    private suspend fun uploadImage(ref: StorageReference, uri: Uri) {
+        try {
+            val snapshot = ref.putFile(uri).await()
 
-                    firestore.collection("posts")
-                        .document() /* auto-ID */
-                        .set(uri) /* data */
-                        .addOnCompleteListener {  }
+            val url = snapshot.storage.downloadUrl.await()
 
-                }.addOnFailureListener { exception ->
+            val post = hashMapOf(
+                "content" to "텍스트 그리고 \n<image>$url</image>",
+                "imageUrl" to url,
+                "createdAt" to Timestamp(Date())
+            )
 
-                }.addOnCanceledListener {
+            Firebase.firestore
+                .collection("posts")
+                .document()
+                .set(post)
+                .await()
+        } catch (exception: Exception) {
 
-                }
-            }
-            task.exception != null -> {
-
-            }
-            task.isCanceled -> {
-
-            }
         }
     }
 
