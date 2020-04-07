@@ -1,6 +1,7 @@
 package lab.march.diary.firebase
 
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.remoteconfig.ktx.get
 import com.google.firebase.remoteconfig.ktx.remoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 
@@ -12,4 +13,6 @@ fun main() {
     remoteConfig.setConfigSettingsAsync(settings)
 
     /*remoteConfig.setDefaultsAsync(R.xml.remote_config_defaults)*/
+
+    val welcomeMessage = remoteConfig["welcome_message"].asString()
 }
